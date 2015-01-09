@@ -24,14 +24,25 @@ class PictureLabel(QLabel):
 
     def __init__(self, image_path, parent=None):
         super(PictureLabel, self).__init__(parent)
-        self.image = QPixmap(image_path)
+        self.image_raw = QImage(image_path)
+        self.image = QPixmap(self.image_raw)
+
+        # DEBUG ONLY : displaying pixel values
+        #self.print_pixels()
+
         # Scaling
         self.image = self.image.scaled(self.image.size() * self.SCALE)
-        self.setPixmap(self.image)
+        self.setPixmap(QPixmap(self.image))
 
         self.background_points = set()
         self.foreground_points = set()
 
+    def print_pixels(self):
+        w, h = self.image_raw.width(), self.image_raw.height()
+        for i in xrange(w):
+            for j in xrange(h):
+                print qRed(self.image_raw.pixel(i, j)),
+            print
 
     def mousePressEvent(self, event):
         self.new_point(event)
