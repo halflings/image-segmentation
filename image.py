@@ -2,6 +2,7 @@ from collections import Counter
 from math import exp, pi, sqrt
 
 import numpy as np
+import graph_tool.all as gt
 from PIL import Image
 
 def norm_pdf(x, mu, sigma):
@@ -50,12 +51,13 @@ class SegmentedImage(object):
 
     def calculate_normal(self, points):
         values = [self.pixel_values[p] for p in points]
-        return np.mean(values), np.std(values)
+        return np.mean(values), np.std(values) + 0.0001
 
     def regional_cost(self, point, mean, std):
         return self.lambda_factor * norm_pdf(self.pixel_values[point], mean, std)
 
     def calculate_costs(self, obj_seeds, bkg_seeds):
+        self.obj_seeds, self.bkg_seeds = obj_seeds, bkg_seeds
         obj_mean, obj_std = self.calculate_normal(obj_seeds)
         bkg_mean, bkg_std = self.calculate_normal(bkg_seeds)
 
@@ -64,10 +66,71 @@ class SegmentedImage(object):
         self.regional_penalty_bkg = {p: self.k_factor if p in obj_seeds else 0 if p in bkg_seeds else self.regional_cost(p, bkg_mean, bkg_std)
                                      for p in self.pixels()}
 
+    def create_graph(self):
+        OBJ_COLOR = [0.8, 0.3, 0.3, 0.7]
+        BKG_COLOR = [0.3, 0.8, 0.3, 0.7]
+        g = gt.Graph(directed=False)
+        penalty = g.new_edge_property("double")
+        position = g.new_vertex_property("vector<float>")
+        intensity = g.new_vertex_property("short")
+        vertex_color = g.new_vertex_property("vector<double>")
+        edge_color = g.new_edge_property("vector<double>")
+
+        point_to_vertex = dict()
+
+        # Creating vertice
+        for p in self.pixels():
+            vertex = g.add_vertex()
+            position[vertex] = (p[0], p[1])
+            intensity[vertex] = self.pixel_values[p]
+            rel_color = self.pixel_values[p] / 255.
+            if p in self.obj_seeds:
+                vertex_color[vertex] = OBJ_COLOR
+            elif p in self.bkg_seeds:
+                vertex_color[vertex] = BKG_COLOR
+            else:
+                vertex_color[vertex] = [rel_color, rel_color, rel_color, 1]
+            point_to_vertex[p] = vertex
+
+        # Boundary costs
+        for x in xrange(0, self.w, 2):
+            for y in xrange(0, self.h, 2):
+                p = (x, y)
+                for n_p in self.neighbours(*p):
+                    edge = g.add_edge(point_to_vertex[p], point_to_vertex[n_p])
+                    penalty[edge] = self.boundary_penalty(p, n_p)
+                    edge_color[edge] = [0.5, 0.5, 0.5, 1.]
+
+        # Regional costs
+        obj_vertex = g.add_vertex()
+        bkg_vertex = g.add_vertex()
+
+        for p in self.pixels():
+            obj_edge = g.add_edge(point_to_vertex[p], obj_vertex)
+            bkg_edge = g.add_edge(point_to_vertex[p], bkg_vertex)
+
+            penalty[obj_edge] = self.regional_penalty_obj[p]
+            penalty[bkg_edge] = self.regional_penalty_bkg[p]
+
+            edge_color[obj_edge] = OBJ_COLOR
+            edge_color[bkg_edge] = BKG_COLOR
+
+        position[obj_vertex] = (-0.05*self.w, -0.05*self.h)
+        position[bkg_vertex] = (1.05*self.w, 1.05*self.h)
+
+        vertex_color[obj_vertex] = OBJ_COLOR
+        vertex_color[bkg_vertex] = BKG_COLOR
+
+        gt.graph_draw(g, vertex_text=intensity, pos=position, vertex_font_size=18, edge_pen_width=penalty,
+                      vertex_fill_color=vertex_color, edge_color=edge_color,
+                      output_size=(800, 800), output="graph.png")
 
 if __name__ == '__main__':
-    img = SegmentedImage('cat-bw.jpg')
+    img = SegmentedImage('mini-test.jpg')
 
-    dummy_obj_seeds = {(50 + i, 50 + j) for i in xrange(5) for j in xrange(5)}
-    dummy_bkg_seeds = {(110 + i, 110 + j) for i in xrange(5) for j in xrange(5)}
+    sorted_pixels = sorted(img.pixel_values.keys(), key=lambda p : img.pixel_values[p])
+    dummy_obj_seeds = sorted_pixels[:10]
+    dummy_bkg_seeds = sorted_pixels[-10:]
+
     img.calculate_costs(dummy_obj_seeds, dummy_bkg_seeds)
+    img.create_graph()
