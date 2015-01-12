@@ -11,7 +11,8 @@ BKG_COLOR = [0.2, 0.8, 0.2, 0.8]
 NEUTRAL_COLOR = [0.5, 0.5, 0.5, 1.]
 
 def norm_pdf(x, mu, sigma):
-    return (1/(sqrt(2*pi)*abs(sigma)))*exp(-x**2/2)
+    factor = (1. / (abs(sigma) * sqrt(2 * pi)))
+    return factor * exp( -(x-mu)**2 / (2. * sigma**2) )
 
 class SegmentedImage(object):
     def __init__(self, image_path):
@@ -26,7 +27,7 @@ class SegmentedImage(object):
 
         # Factors
         self.lambda_factor = 2.
-        self.sigma_factor = 30.
+        self.sigma_factor = 50.
 
         self.calculate_boundary_costs()
         self.create_graph()
@@ -61,13 +62,17 @@ class SegmentedImage(object):
 
     def calculate_normal(self, points):
         values = [self.pixel_values[p] for p in points]
-        return np.mean(values), np.std(values) + 0.0001 # HOTFIX: ugly ugly fix to avoid a nil deviation
+        return np.mean(values), max(np.std(values), 0.00001) # HOTFIX: ugly ugly fix to avoid a nil deviation
 
     def regional_cost(self, point, mean, std):
-        return self.lambda_factor * log(norm_pdf(self.pixel_values[point], mean, std) + 0.00000001)
+        prob = max(norm_pdf(self.pixel_values[point], mean, std), 0.000000000001) # Another HOTFIX
+        #print self.pixel_values[point], mean, norm_pdf(self.pixel_values[point], mean, std), - self.lambda_factor * log(prob)
+        return - self.lambda_factor * log(prob)
 
-    def calculate_costs(self, obj_seeds, bkg_seeds):
+    def segmentation(self, obj_seeds, bkg_seeds):
         self.obj_seeds, self.bkg_seeds = obj_seeds, bkg_seeds
+
+        # Updating regional penalties
         obj_mean, obj_std = self.calculate_normal(obj_seeds)
         bkg_mean, bkg_std = self.calculate_normal(bkg_seeds)
 
@@ -76,7 +81,19 @@ class SegmentedImage(object):
         self.regional_penalty_bkg = {p: self.k_factor if p in obj_seeds else 0 if p in bkg_seeds else self.regional_cost(p, bkg_mean, bkg_std)
                                      for p in self.pixels()}
 
+
+        # Updating the graph
         self.update_graph()
+
+        # Graph cut
+        _, res = gt.min_cut(self.graph, self.graph_penalty)
+
+        for vertex in self.point_to_vertex.values():
+            if res[vertex]:
+                self.graph_vertex_color[vertex] = OBJ_COLOR
+            else:
+                self.graph_vertex_color[vertex] = BKG_COLOR
+
 
     def create_graph(self):
         self.graph = gt.Graph(directed=False)
@@ -176,8 +193,8 @@ if __name__ == '__main__':
     img = SegmentedImage(image_path)
 
     sorted_pixels = sorted(img.pixel_values.keys(), key=lambda p : img.pixel_values[p])
-    dummy_obj_seeds = sorted_pixels[:10]
-    dummy_bkg_seeds = sorted_pixels[-10:]
+    dummy_obj_seeds = sorted_pixels[:2]
+    dummy_bkg_seeds = sorted_pixels[-2:]
 
-    img.calculate_costs(dummy_obj_seeds, dummy_bkg_seeds)
+    img.segmentation(dummy_obj_seeds, dummy_bkg_seeds)
     img.save_graph('graph.png')
