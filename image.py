@@ -5,6 +5,10 @@ import numpy as np
 import graph_tool.all as gt
 from PIL import Image
 
+OBJ_COLOR = [0.7, 0.2, 0.2, 0.8]
+BKG_COLOR = [0.2, 0.8, 0.2, 0.8]
+NEUTRAL_COLOR = [0.5, 0.5, 0.5, 1.]
+
 def norm_pdf(x, mu, sigma):
     return (1/(sqrt(2*pi)*abs(sigma)))*exp(-x**2/2)
 
@@ -67,12 +71,13 @@ class SegmentedImage(object):
                                      for p in self.pixels()}
 
     def create_graph(self):
-        OBJ_COLOR = [0.8, 0.3, 0.3, 0.7]
-        BKG_COLOR = [0.3, 0.8, 0.3, 0.7]
         g = gt.Graph(directed=False)
         penalty = g.new_edge_property("double")
+
+        # Properties used for visualization
         position = g.new_vertex_property("vector<float>")
         intensity = g.new_vertex_property("short")
+        vertex_label = g.new_vertex_property("string")
         vertex_color = g.new_vertex_property("vector<double>")
         edge_color = g.new_edge_property("vector<double>")
 
@@ -83,6 +88,7 @@ class SegmentedImage(object):
             vertex = g.add_vertex()
             position[vertex] = (p[0], p[1])
             intensity[vertex] = self.pixel_values[p]
+            vertex_label[vertex] = str(self.pixel_values[p])
             rel_color = self.pixel_values[p] / 255.
             if p in self.obj_seeds:
                 vertex_color[vertex] = OBJ_COLOR
@@ -99,7 +105,7 @@ class SegmentedImage(object):
                 for n_p in self.neighbours(*p):
                     edge = g.add_edge(point_to_vertex[p], point_to_vertex[n_p])
                     penalty[edge] = self.boundary_penalty(p, n_p)
-                    edge_color[edge] = [0.5, 0.5, 0.5, 1.]
+                    edge_color[edge] = NEUTRAL_COLOR
 
         # Regional costs
         obj_vertex = g.add_vertex()
@@ -119,9 +125,11 @@ class SegmentedImage(object):
         position[bkg_vertex] = (1.05*self.w, 1.05*self.h)
 
         vertex_color[obj_vertex] = OBJ_COLOR
+        vertex_label[obj_vertex] = 'Obj'
         vertex_color[bkg_vertex] = BKG_COLOR
+        vertex_label[bkg_vertex] = 'Bkg'
 
-        gt.graph_draw(g, vertex_text=intensity, pos=position, vertex_font_size=18, edge_pen_width=penalty,
+        gt.graph_draw(g, vertex_text=vertex_label, pos=position, vertex_font_size=18, edge_pen_width=penalty,
                       vertex_fill_color=vertex_color, edge_color=edge_color,
                       output_size=(800, 800), output="graph.png")
 
