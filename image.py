@@ -86,17 +86,18 @@ class SegmentedImage(object):
         self.update_graph()
 
         # Graph cut
-        _, res = gt.min_cut(self.graph, self.graph_penalty)
+        residual = gt.boykov_kolmogorov_max_flow(self.graph, self.obj_vertex, self.bkg_vertex, self.graph_penalty)
+        cut = gt.min_st_cut(self.graph, self.obj_vertex, self.graph_penalty, residual)
 
         for vertex in self.point_to_vertex.values():
-            if res[vertex]:
+            if cut[vertex]:
                 self.graph_vertex_color[vertex] = OBJ_COLOR
             else:
                 self.graph_vertex_color[vertex] = BKG_COLOR
 
 
     def create_graph(self):
-        self.graph = gt.Graph(directed=False)
+        self.graph = gt.Graph(directed=True)
         g = self.graph
         self.graph_penalty = g.new_edge_property("double")
 
@@ -128,16 +129,19 @@ class SegmentedImage(object):
             for y in xrange(0, self.h):
                 p = (x, y)
                 for n_p in self.special_neighbours(*p):
-                    edge = g.add_edge(self.point_to_vertex[p], self.point_to_vertex[n_p])
-                    self.tuple_to_edge[(p, n_p)] = edge
-                    self.graph_edge_color[edge] = NEUTRAL_COLOR
+                    edge_a = g.add_edge(self.point_to_vertex[p], self.point_to_vertex[n_p])
+                    edge_b = g.add_edge(self.point_to_vertex[n_p], self.point_to_vertex[p])
+                    self.tuple_to_edge[(p, n_p)] = edge_a
+                    self.tuple_to_edge[(n_p, p)] = edge_b
+                    self.graph_edge_color[edge_a] = NEUTRAL_COLOR
+                    self.graph_edge_color[edge_b] = NEUTRAL_COLOR
 
         # Creating obj/Bkg edges
         self.obj_vertex = g.add_vertex()
         self.bkg_vertex = g.add_vertex()
 
         for p in self.pixels():
-            obj_edge = g.add_edge(self.point_to_vertex[p], self.obj_vertex)
+            obj_edge = g.add_edge(self.obj_vertex, self.point_to_vertex[p])
             bkg_edge = g.add_edge(self.point_to_vertex[p], self.bkg_vertex)
 
             self.obj_edges[p] = obj_edge
@@ -171,8 +175,10 @@ class SegmentedImage(object):
             for y in xrange(0, self.h, 2):
                 p = (x, y)
                 for n_p in self.special_neighbours(*p):
-                    edge = self.tuple_to_edge.get((p, n_p)) or self.tuple_to_edge.get((n_p, p))
-                    self.graph_penalty[edge] = self.boundary_costs[p][n_p] # self.boundary_penalty(p, n_p)
+                    edge_a = self.tuple_to_edge.get((p, n_p))
+                    edge_b = self.tuple_to_edge.get((n_p, p))
+                    self.graph_penalty[edge_a] = self.boundary_costs[p][n_p]
+                    self.graph_penalty[edge_b] = self.boundary_costs[p][n_p]
 
         # Regional costs
         for p in self.pixels():
@@ -193,8 +199,8 @@ if __name__ == '__main__':
     img = SegmentedImage(image_path)
 
     sorted_pixels = sorted(img.pixel_values.keys(), key=lambda p : img.pixel_values[p])
-    dummy_obj_seeds = sorted_pixels[:2]
-    dummy_bkg_seeds = sorted_pixels[-2:]
+    dummy_obj_seeds = sorted_pixels[:20]
+    dummy_bkg_seeds = sorted_pixels[-20:]
 
     img.segmentation(dummy_obj_seeds, dummy_bkg_seeds)
     img.save_graph('graph.png')
