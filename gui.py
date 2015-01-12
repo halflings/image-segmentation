@@ -11,7 +11,7 @@ class Main(QWidget):
 
         layout  = QVBoxLayout(self)
 
-        picture = PictureLabel("cat-bw.jpg", self)
+        picture = PictureLabel("mini-test.jpg", self)
         picture.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         layout.addWidget(picture)
@@ -20,18 +20,16 @@ class Main(QWidget):
 class PictureLabel(QLabel):
     BACKGROUND_POINTS_COLOR = QColor(180, 50, 50, 100)
     FOREGROUND_POINTS_COLOR = QColor(50, 180, 50, 100)
-    SCALE = 5
+    WANTED_WIDTH = 500.
 
     def __init__(self, image_path, parent=None):
         super(PictureLabel, self).__init__(parent)
         self.image_raw = QImage(image_path)
         self.image = QPixmap(self.image_raw)
 
-        # DEBUG ONLY : displaying pixel values
-        #self.print_pixels()
-
         # Scaling
-        self.image = self.image.scaled(self.image.size() * self.SCALE)
+        self.scale = max(1, int(self.WANTED_WIDTH / self.image_raw.width()))
+        self.image = self.image.scaled(self.image.size() * self.scale)
         self.setPixmap(QPixmap(self.image))
 
         self.background_points = set()
@@ -52,7 +50,7 @@ class PictureLabel(QLabel):
 
     def new_point(self, event):
         # Getting the point's coordinates
-        point = (event.x() / self.SCALE, event.y() / self.SCALE)
+        point = (event.x() / self.scale, event.y() / self.scale)
 
         # Ignoring the point if it was already in either of the sets
         for points_set in [self.background_points, self.foreground_points]:
@@ -77,13 +75,13 @@ class PictureLabel(QLabel):
         painter.setPen(PictureLabel.BACKGROUND_POINTS_COLOR)
         painter.setBrush(PictureLabel.BACKGROUND_POINTS_COLOR)
         for point in self.background_points:
-            painter.drawRect(point[0] * self.SCALE, point[1] * self.SCALE, self.SCALE, self.SCALE)
+            painter.drawRect(point[0] * self.scale, point[1] * self.scale, self.scale, self.scale)
 
         # Drawing foreground points
         painter.setPen(PictureLabel.FOREGROUND_POINTS_COLOR)
         painter.setBrush(PictureLabel.FOREGROUND_POINTS_COLOR)
         for point in self.foreground_points:
-            painter.drawRect(point[0] * self.SCALE, point[1] * self.SCALE, self.SCALE, self.SCALE)
+            painter.drawRect(point[0] * self.scale, point[1] * self.scale, self.scale, self.scale)
 
 
 a = QApplication([])
