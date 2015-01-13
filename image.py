@@ -89,11 +89,17 @@ class SegmentedImage(object):
         residual = gt.boykov_kolmogorov_max_flow(self.graph, self.obj_vertex, self.bkg_vertex, self.graph_penalty)
         cut = gt.min_st_cut(self.graph, self.obj_vertex, self.graph_penalty, residual)
 
-        for vertex in self.point_to_vertex.values():
+        obj_points = set()
+        bkg_points = set()
+        for point, vertex in self.point_to_vertex.iteritems():
             if cut[vertex]:
-                self.graph_vertex_color[vertex] = OBJ_COLOR
-            else:
                 self.graph_vertex_color[vertex] = BKG_COLOR
+                bkg_points.add(point)
+            else:
+                self.graph_vertex_color[vertex] = OBJ_COLOR
+                obj_points.add(point)
+
+        return obj_points, bkg_points
 
 
     def create_graph(self):
@@ -200,9 +206,10 @@ if __name__ == '__main__':
 
     sorted_pixels = sorted(img.pixel_values.keys(), key=lambda p : img.pixel_values[p])
     number_of_seeds = max(2, int(img.w * img.h * 0.05))
-    dummy_obj_seeds = sorted_pixels[:number_of_seeds]
-    dummy_bkg_seeds = sorted_pixels[-number_of_seeds:]
+    dummy_obj_seeds = sorted_pixels[-number_of_seeds:]
+    dummy_bkg_seeds = sorted_pixels[:number_of_seeds]
 
     print "Segmenting the image '{}' with {} seeds (for obj and bkg)".format(image_path, number_of_seeds)
+    img.save_graph('graph_pre_segmentation.png')
     img.segmentation(dummy_obj_seeds, dummy_bkg_seeds)
-    img.save_graph('graph.png')
+    img.save_graph('graph_post_segmentation.png')
