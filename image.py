@@ -199,8 +199,10 @@ if __name__ == '__main__':
     img = SegmentedImage(image_path)
 
     sorted_pixels = sorted(img.pixel_values.keys(), key=lambda p : img.pixel_values[p])
-    dummy_obj_seeds = sorted_pixels[:20]
-    dummy_bkg_seeds = sorted_pixels[-20:]
+    number_of_seeds = max(2, int(img.w * img.h * 0.05))
+    dummy_obj_seeds = sorted_pixels[:number_of_seeds]
+    dummy_bkg_seeds = sorted_pixels[-number_of_seeds:]
 
+    print "Segmenting the image '{}' with {} seeds (for obj and bkg)".format(image_path, number_of_seeds)
     img.segmentation(dummy_obj_seeds, dummy_bkg_seeds)
     img.save_graph('graph.png')
