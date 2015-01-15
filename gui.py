@@ -16,7 +16,7 @@ class Main(QWidget):
         picture.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         layout.addWidget(picture)
-        layout.addWidget(QLabel("Click for foreground. Shift + Click for background."))
+        layout.addWidget(QLabel("Click for foreground. Shift + Click for background. Ctrl + Click to remove seeds.\nR to launch the segmentation, S to toggle the segmentation view."))
 
 class PictureLabel(QLabel):
     BACKGROUND_SEEDS_COLOR = QColor(180, 50, 50, 150)
@@ -24,7 +24,7 @@ class PictureLabel(QLabel):
 
     BACKGROUND_POINTS_COLOR = QColor(180, 50, 50, 80)
     FOREGROUND_POINTS_COLOR = QColor(50, 180, 50, 80)
-    WANTED_WIDTH = 500.
+    WANTED_WIDTH = 800.
 
     def __init__(self, image_path, parent=None):
         super(PictureLabel, self).__init__(parent)
