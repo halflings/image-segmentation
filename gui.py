@@ -16,7 +16,23 @@ class Main(QWidget):
         picture.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         layout.addWidget(picture)
+
+        # Setting up sliders
+        self.setup_slider("Lambda", layout, callback=None)
+        self.setup_slider("Sigma", layout, callback=None)
+
+
         layout.addWidget(QLabel("Click for foreground. Shift + Click for background. Ctrl + Click to remove seeds.\nR to launch the segmentation, S to toggle the segmentation view."))
+
+    def setup_slider(self, title, layout, callback):
+        lambda_layout  = QHBoxLayout()
+        lambda_slider = QSlider()
+        lambda_slider.setOrientation(Qt.Horizontal)
+
+        lambda_layout.addWidget(QLabel(title))
+        lambda_layout.addWidget(lambda_slider)
+
+        layout.addLayout(lambda_layout)
 
 class PictureLabel(QLabel):
     BACKGROUND_SEEDS_COLOR = QColor(180, 50, 50, 150)
