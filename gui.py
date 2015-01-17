@@ -18,21 +18,30 @@ class Main(QWidget):
         layout.addWidget(picture)
 
         # Setting up sliders
-        self.setup_slider("Lambda", layout, callback=None)
-        self.setup_slider("Sigma", layout, callback=None)
+        self.lambda_slider = self.setup_slider("Lambda", layout, 1, 500)
+        self.sigma_slider = self.setup_slider("Sigma", layout, 1, 500)
 
 
         layout.addWidget(QLabel("Click for foreground. Shift + Click for background. Ctrl + Click to remove seeds.\nR to launch the segmentation, S to toggle the segmentation view."))
 
-    def setup_slider(self, title, layout, callback):
-        lambda_layout  = QHBoxLayout()
-        lambda_slider = QSlider()
-        lambda_slider.setOrientation(Qt.Horizontal)
+    def setup_slider(self, title, layout, minVal, maxVal):
+        s_layout  = QHBoxLayout()
+        slider = QSlider()
+        slider.setOrientation(Qt.Horizontal)
+        slider.setRange(minVal, maxVal)
+        slider.setTickPosition(QSlider.TicksAbove)
+        label = QLabel(title)
 
-        lambda_layout.addWidget(QLabel(title))
-        lambda_layout.addWidget(lambda_slider)
+        def callback(new_value):
+            label.setText("{}: {}".format(title, new_value))
+        slider.valueChanged.connect(callback)
+        slider.setValue(2)
 
-        layout.addLayout(lambda_layout)
+        s_layout.addWidget(label)
+        s_layout.addWidget(slider)
+
+        layout.addLayout(s_layout)
+        return slider
 
 class PictureLabel(QLabel):
     BACKGROUND_SEEDS_COLOR = QColor(180, 50, 50, 150)
@@ -44,6 +53,7 @@ class PictureLabel(QLabel):
 
     def __init__(self, image_path, parent=None):
         super(PictureLabel, self).__init__(parent)
+        self.parent = parent
         self.segmented_image = SegmentedImage(image_path)
         self.image_raw = QImage(image_path)
         self.image = QPixmap(self.image_raw)
@@ -74,8 +84,8 @@ class PictureLabel(QLabel):
     def keyReleaseEvent(self, event):
         super(PictureLabel, self).keyReleaseEvent(event)
         # Re-segmenting the image
-        if event.key() == Qt.Key_R:
-            self.obj_points, self.bkg_points = self.segmented_image.segmentation(self.obj_seeds, self.bkg_seeds)
+        if event.key() == Qt.Key_R and (self.obj_seeds and self.bkg_seeds):
+            self.obj_points, self.bkg_points = self.segmented_image.segmentation(self.obj_seeds, self.bkg_seeds, self.parent.lambda_slider.value(), self.parent.sigma_slider.value())
         if event.key() == Qt.Key_S:
             self.segmentation_shown = not self.segmentation_shown
 
@@ -87,12 +97,6 @@ class PictureLabel(QLabel):
         if not (0 <= point[0] < self.segmented_image.w and 0 <= point[1] < self.segmented_image.h):
             return
 
-        # Automatically resetting the segmentation when adding new points
-        if self.obj_points:
-            self.obj_points = set()
-        if self.bkg_points:
-            self.bkg_points = set()
-
         # Ignoring the point if it was already in either of the sets, or deleting it if CTRL is pressed
         for points_set in [self.bkg_seeds, self.obj_seeds]:
             if point in points_set:
@@ -102,6 +106,12 @@ class PictureLabel(QLabel):
                 return
         if event.modifiers() == Qt.ControlModifier:
             return
+
+        # Automatically resetting the segmentation when adding new points
+        if self.obj_points:
+            self.obj_points = set()
+        if self.bkg_points:
+            self.bkg_points = set()
 
         # Adding the point to the appropriate set
         background = event.modifiers() == Qt.ShiftModifier

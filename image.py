@@ -42,7 +42,7 @@ class SegmentedImage(object):
                  if 0 <= i < self.w and 0 <= j < self.h and (i != x or j != y))
 
     def boundary_penalty(self, p_a, p_b):
-        i_delta = self.pixel_values[p_a] - self.pixel_values[p_a]
+        i_delta = self.pixel_values[p_a] - self.pixel_values[p_b]
         distance = abs(p_a[0] - p_b[0]) + abs(p_a[1] - p_b[1])
         return exp(- i_delta**2 / (2 * self.sigma_factor**2)) / distance
 
@@ -66,11 +66,16 @@ class SegmentedImage(object):
 
     def regional_cost(self, point, mean, std):
         prob = max(norm_pdf(self.pixel_values[point], mean, std), 0.000000000001) # Another HOTFIX
-        #print self.pixel_values[point], mean, norm_pdf(self.pixel_values[point], mean, std), - self.lambda_factor * log(prob)
         return - self.lambda_factor * log(prob)
 
-    def segmentation(self, obj_seeds, bkg_seeds):
+    def segmentation(self, obj_seeds, bkg_seeds, lambda_factor, sigma_factor):
         self.obj_seeds, self.bkg_seeds = obj_seeds, bkg_seeds
+
+        self.lambda_factor = float(lambda_factor)
+        sigma_factor = float(sigma_factor)
+        if sigma_factor != self.sigma_factor:
+            self.sigma_factor = sigma_factor
+            self.calculate_boundary_costs()
 
         # Updating regional penalties
         obj_mean, obj_std = self.calculate_normal(obj_seeds)
@@ -165,6 +170,7 @@ class SegmentedImage(object):
         self.graph_vertex_label[self.bkg_vertex] = 'Bkg'
 
     def update_graph(self):
+        print "Graph update, lambda = {} ; sigma = {}".format(self.lambda_factor, self.sigma_factor)
         # Update vertices colors (seeds)
         for p in self.pixels():
             vertex = self.point_to_vertex[p]
